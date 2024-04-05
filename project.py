@@ -9,9 +9,8 @@ def load(fname):
     DList = []
     labelsList = []
     hLabels = {
-        'Iris-setosa': 0,
-        'Iris-versicolor': 1,
-        'Iris-virginica': 2
+        '0': 0,
+        '1': 1
         }
 
     with open(fname) as f:
@@ -39,54 +38,52 @@ def plot_hist(D, L):
 
     D0 = D[:, L==0]
     D1 = D[:, L==1]
-    D2 = D[:, L==2]
 
     hFea = {
-        0: 'Sepal length',
-        1: 'Sepal width',
-        2: 'Petal length',
-        3: 'Petal width'
+        0: 'dimension 1',
+        1: 'dimension 2',
+        2: 'dimension 3',
+        3: 'dimension 4',
+        4: 'dimension 5',
+        5: 'dimension 6',
         }
 
-    for dIdx in range(4):
+    for dIdx in range(6):
         plt.figure()
         plt.xlabel(hFea[dIdx])
-        plt.hist(D0[dIdx, :], bins = 10, density = True, alpha = 0.4, label = 'Setosa')
-        plt.hist(D1[dIdx, :], bins = 10, density = True, alpha = 0.4, label = 'Versicolor')
-        plt.hist(D2[dIdx, :], bins = 10, density = True, alpha = 0.4, label = 'Virginica')
+        plt.hist(D0[dIdx, :], bins = 10, density = True, alpha = 0.4, label = 'fake')
+        plt.hist(D1[dIdx, :], bins = 10, density = True, alpha = 0.4, label = 'real')
         
         plt.legend()
         plt.tight_layout() # Use with non-default font size to keep axis label inside the figure
-        #plt.savefig('hist_%d.pdf' % dIdx)
     plt.show()
 
 def plot_scatter(D, L):
     
     D0 = D[:, L==0]
     D1 = D[:, L==1]
-    D2 = D[:, L==2]
 
     hFea = {
-        0: 'Sepal length',
-        1: 'Sepal width',
-        2: 'Petal length',
-        3: 'Petal width'
+        0: 'dimension 1',
+        1: 'dimension 2',
+        2: 'dimension 3',
+        3: 'dimension 4',
+        4: 'dimension 5',
+        5: 'dimension 6',
         }
 
-    for dIdx1 in range(4):
-        for dIdx2 in range(4):
+    for dIdx1 in range(6):
+        for dIdx2 in range(6):
             if dIdx1 == dIdx2:
                 continue
             plt.figure()
             plt.xlabel(hFea[dIdx1])
             plt.ylabel(hFea[dIdx2])
-            plt.scatter(D0[dIdx1, :], D0[dIdx2, :], label = 'Setosa')
-            plt.scatter(D1[dIdx1, :], D1[dIdx2, :], label = 'Versicolor')
-            plt.scatter(D2[dIdx1, :], D2[dIdx2, :], label = 'Virginica')
+            plt.scatter(D0[dIdx1, :], D0[dIdx2, :], label = 'fake')
+            plt.scatter(D1[dIdx1, :], D1[dIdx2, :], label = 'real')
         
             plt.legend()
             plt.tight_layout() # Use with non-default font size to keep axis label inside the figure
-            #plt.savefig('scatter_%d_%d.pdf' % (dIdx1, dIdx2))
         plt.show()
 
     
@@ -97,7 +94,7 @@ if __name__ == '__main__':
     plt.rc('xtick', labelsize=16)
     plt.rc('ytick', labelsize=16)
 
-    D, L = load('iris.csv')
+    D, L = load('trainData.txt')
     plot_hist(D, L)
     plot_scatter(D, L)
 
@@ -119,7 +116,7 @@ if __name__ == '__main__':
     print('Std. dev.:', std)
     print()
     
-    for cls in [0,1,2]:
+    for cls in [0,1]:
         print('Class', cls)
         DCls = D[:, L==cls]
         mu = DCls.mean(1).reshape(DCls.shape[0], 1)
