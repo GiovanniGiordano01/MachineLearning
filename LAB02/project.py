@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     D, L = load('trainData.txt')
     plot_hist(D, L)
-    plot_scatter(D, L)
+    #plot_scatter(D, L)
 
     mu = D.mean(1).reshape((D.shape[0], 1))
     print('Mean:')
