@@ -32,7 +32,7 @@ def compute_ll(X, mu, C):
     return logpdf_GAU_ND_fast(X, mu, C).sum()
 
 if __name__ == '__main__':
-    plt.figure()
+    plt.figure(1)
     XPlot = numpy.linspace(-8, 12, 1000)
     m = numpy.ones((1,1)) * 1.0
     C = numpy.ones((1,1)) * 2.0
@@ -68,11 +68,10 @@ if __name__ == '__main__':
     print(m_ML)
     print(C_ML)
 
-    plt.figure()
+    plt.figure(2)
     plt.hist(X1D.ravel(), bins=50, density=True)    
     XPlot = numpy.linspace(-8, 12, 1000)
     plt.plot(XPlot.ravel(), numpy.exp(logpdf_GAU_ND_fast(vrow(XPlot), m_ML, C_ML)))
     plt.show()
 
-    ll = compute_ll(X1D, m_ML, C_ML)
-    print(ll)
+    print(compute_ll(X1D, m_ML, C_ML))
