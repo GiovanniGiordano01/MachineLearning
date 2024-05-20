@@ -20,8 +20,8 @@ def load(fname):
                 labelsList.append(label)
             except:
                 pass
-
     return numpy.hstack(DList), numpy.array(labelsList, dtype=numpy.int32)
+
 def vcol(x):
     return x.reshape((x.size, 1))
 
