@@ -151,13 +151,13 @@ if __name__ == '__main__':
     D, L = load2() #load dei dati iris
     DP,P=PCA_Projection_Matrix(D,m=2)
     #PCA_plots(DP,L)
-    #plot_hist(DP,L)
+    plot_hist(DP,L)
 
     #LDA
     W = compute_lda_geig(D, L, m = 1)
     DW=numpy.dot(W.T,D)
     #print(DW)
-    #plot_hist(DW,L)
+    plot_hist(DW,L)
 
     #classification
 

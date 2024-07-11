@@ -110,20 +110,7 @@ if __name__ == '__main__':
     PVAL = S_logPost.argmax(0)
 
     print("MVG - Error rate: %.1f%%" % ((PVAL != LVAL).sum() / float(LVAL.size) * 100)) 
-
-    #naive bayes gaussian classifier
-    hParams_Naive = Gau_Naive_ML_estimates(DTR, LTR)
-    for lab in [0,1,2]:
-        print('Naive Bayes Gaussian - Class', lab)
-        print(hParams_Naive[lab][0])
-        print(hParams_Naive[lab][1])
-        print()   
-
-    S_logLikelihood = compute_log_likelihood_Gau(DVAL, hParams_Naive)
-    S_logPost = compute_logPosterior(S_logLikelihood, numpy.ones(3)/3.)
-    PVAL = S_logPost.argmax(0)
-    print("Naive Bayes Gaussian - Error rate: %.1f%%" % ((PVAL != LVAL).sum() / float(LVAL.size) * 100))
-
+    
     #tied covariance gaussian classifier
     hParams_Tied = Gau_Tied_ML_estimates(DTR, LTR)
     for lab in [0,1,2]:
@@ -136,6 +123,18 @@ if __name__ == '__main__':
     S_logPost = compute_logPosterior(S_logLikelihood, numpy.ones(3)/3.)
     PVAL = S_logPost.argmax(0)
     print("Tied Gaussian - Error rate: %.1f%%" % ((PVAL != LVAL).sum() / float(LVAL.size) * 100))
+    #naive bayes gaussian classifier
+    hParams_Naive = Gau_Naive_ML_estimates(DTR, LTR)
+    for lab in [0,1,2]:
+        print('Naive Bayes Gaussian - Class', lab)
+        print(hParams_Naive[lab][0])
+        print(hParams_Naive[lab][1])
+        print()   
+
+    S_logLikelihood = compute_log_likelihood_Gau(DVAL, hParams_Naive)
+    S_logPost = compute_logPosterior(S_logLikelihood, numpy.ones(3)/3.)
+    PVAL = S_logPost.argmax(0)
+    print("Naive Bayes Gaussian - Error rate: %.1f%%" % ((PVAL != LVAL).sum() / float(LVAL.size) * 100))
         
     #binary classifier
     DIris, LIris = load_iris()
