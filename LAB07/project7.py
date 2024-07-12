@@ -1,7 +1,7 @@
 import numpy
 import scipy.special
 import matplotlib
-import matplotlib.pyplot
+import matplotlib.pyplot as plt
 
 def load(fname):
     DList = []
@@ -289,8 +289,12 @@ if __name__ == '__main__':
         actDCF.append(compute_empirical_Bayes_risk_binary(commedia_predictions_binary, LVAL, effPrior, 1.0, 1.0))
         minDCF.append(compute_minDCF(LLRMVG, LVAL, effPrior, 1.0, 1.0))
     matplotlib.pyplot.figure("MVG classifier - DCF vs minDCF")
+    plt.title("MVG classifier")
     matplotlib.pyplot.plot(effPriorLogOdds, actDCF, label='DCF', color='r')
     matplotlib.pyplot.plot(effPriorLogOdds, minDCF, label='minDCF', color='b')
+    plt.xlabel("prior log odds")
+    plt.ylabel("DCF")
+    plt.grid()
     matplotlib.pyplot.ylim([0, 1.1])
     matplotlib.pyplot.legend()
     matplotlib.pyplot.show()
@@ -309,6 +313,10 @@ if __name__ == '__main__':
     matplotlib.pyplot.plot(effPriorLogOdds, actDCF, label='DCF', color='r')
     matplotlib.pyplot.plot(effPriorLogOdds, minDCF, label='minDCF', color='b')
     matplotlib.pyplot.ylim([0, 1.1])
+    plt.title("naive Bayes classifier")
+    plt.xlabel("prior log odds")
+    plt.ylabel("DCF")
+    plt.grid()
     matplotlib.pyplot.legend()
     matplotlib.pyplot.show()
 
@@ -325,6 +333,10 @@ if __name__ == '__main__':
     matplotlib.pyplot.figure("naive classifier - DCF vs minDCF")
     matplotlib.pyplot.plot(effPriorLogOdds, actDCF, label='DCF', color='r')
     matplotlib.pyplot.plot(effPriorLogOdds, minDCF, label='minDCF', color='b')
+    plt.title("tied covariance classifier")
+    plt.xlabel("prior log odds")
+    plt.ylabel("DCF")
+    plt.grid()
     matplotlib.pyplot.ylim([0, 1.1])
     matplotlib.pyplot.legend()
     matplotlib.pyplot.show()

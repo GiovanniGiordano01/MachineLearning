@@ -2,7 +2,7 @@ import bayesRisk
 import numpy
 import scipy.special
 import matplotlib
-import matplotlib.pyplot
+import matplotlib.pyplot as plt
 
 def load(fname):
     DList = []
@@ -94,13 +94,27 @@ def trainWeightedLogRegBinary(DTR, LTR, l, pT):
     print ("Weighted Log-reg (pT %e) - lambda = %e - J*(w, b) = %e" % (pT, l, logreg_obj_with_grad(vf)[0]))
     return vf[:-1], vf[-1]
 
-def plot_bayes_plot(dcf,msg):
+def plot_bayes_plot(actDCF,minDCF,msg):
     matplotlib.pyplot.figure("Logistic regression - lambda and "+msg+" visualized")
     matplotlib.pyplot.xscale('log', base=10)
-    matplotlib.pyplot.plot(numpy.logspace(-4, 2, 13), dcf, label=msg, color='r', marker= 'o')      
+    matplotlib.pyplot.plot(numpy.logspace(-4, 2, 13), actDCF, label="actDCF", color='r', marker= 'o')  
+    matplotlib.pyplot.plot(numpy.logspace(-4, 2, 13), minDCF, label="minDCF", color='b', marker= 'o')   
+    plt.title(msg)
+    plt.grid()
+    plt.xlabel("lambda")
+    plt.ylabel("DCF")
     #matplotlib.pyplot.ylim([0, 1.1])
     matplotlib.pyplot.legend()
     matplotlib.pyplot.show()
+def compute_phi(X):
+    X_T = numpy.transpose(X)
+    X_expanded = []
+    for x in X_T:
+        outer_product = numpy.outer(x, x).flatten()
+        expanded_feature = numpy.concatenate([outer_product, x])
+        X_expanded.append(expanded_feature)
+    X_expanded = numpy.array(X_expanded).T
+    return X_expanded
 if __name__ == '__main__':
     #load our data set
     D, L = load('trainData.txt')
@@ -125,8 +139,7 @@ if __name__ == '__main__':
         #print ('minDCF - pT = 0.5: %.4f' % bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
         #print ('actDCF - pT = 0.5: %.4f' % bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
 
-    plot_bayes_plot(actDCF,"actDCF")
-    plot_bayes_plot(minDCF,"minDCF")
+    plot_bayes_plot(actDCF,minDCF,"LR regression standard")
 
     #too many samples: we reduce the dataset by taking only 1 out of 50 samples
     DTRreduced=DTR[:, ::50]
@@ -140,7 +153,7 @@ if __name__ == '__main__':
         sVal = numpy.dot(w.T, DVAL) + b # Compute validation scores
         PVAL = (sVal > 0) * 1 # Predict validation labels - sVal > 0 returns a boolean array, multiplying by 1 (integer) we get an integer array with 0's and 1's corresponding to the original True and False values
         err = (PVAL != LVAL).sum() / float(LVAL.size)
-        print ('Error rate: %.1f' % (err*100))
+        print ('Error rate quadratic LR: %.1f' % (err*100))
         # Compute empirical prior
         pEmp = (LTRreduced == 1).sum() / LTRreduced.size
         # Compute LLR-like scores - remove the empirical prior
@@ -151,8 +164,7 @@ if __name__ == '__main__':
         #print ('minDCF - pT = 0.5: %.4f' % bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
         #print ('actDCF - pT = 0.5: %.4f' % bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
 
-    plot_bayes_plot(actDCF,"actDCF - reduced sample set")
-    plot_bayes_plot(minDCF,"minDCF - reduced sample set")
+    plot_bayes_plot(actDCF,minDCF,"LR on reduced sample set")
 
     #return to the entire data set: prior weighted algorithm
     actDCF = []
@@ -165,6 +177,54 @@ if __name__ == '__main__':
         actDCF.append(bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
         minDCF.append(bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
 
-    plot_bayes_plot(actDCF,"actDCF - prior weighted LR")
-    plot_bayes_plot(minDCF,"minDCF - prior weighted LR")
+    plot_bayes_plot(actDCF,minDCF,"prior weighted LR")
 
+    #now we train the model on the features expanded data set, this way we have a linear problem in W and c
+    Dexpanded=compute_phi(D)
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(Dexpanded, L)
+    
+    actDCF = []
+    minDCF = []
+    for lamb in numpy.logspace(-4, 2, 13):
+        w, b = trainLogRegBinary(DTR, LTR, lamb) # Train model
+        sVal = numpy.dot(w.T, DVAL) + b # Compute validation scores
+        PVAL = (sVal > 0) * 1 # Predict validation labels - sVal > 0 returns a boolean array, multiplying by 1 (integer) we get an integer array with 0's and 1's corresponding to the original True and False values
+        err = (PVAL != LVAL).sum() / float(LVAL.size)
+        print ('Error rate: %.1f' % (err*100))
+        # Compute empirical prior
+        pEmp = (LTR == 1).sum() / LTR.size
+        # Compute LLR-like scores - remove the empirical prior
+        sValLLR = sVal - numpy.log(pEmp / (1-pEmp))
+        # Compute optimal decisions for the prior 0.1
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        #print ('minDCF - pT = 0.5: %.4f' % bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        #print ('actDCF - pT = 0.5: %.4f' % bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+
+    plot_bayes_plot(actDCF,minDCF,"quadratic LR")
+
+    #now we try some preprocessing on the dataset: try to center with respect to the model training dataset mean
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(D, L)
+    mu=DTR.mean(1) #we compute the mean for every dimension
+    DC=DTR-mu.reshape((mu.size,1))#we center the dataset
+    DVALC=DVAL-mu.reshape((mu.size,1))#we center the dataset
+
+    actDCF = []
+    minDCF = []
+    for lamb in numpy.logspace(-4, 2, 13):
+        w, b = trainLogRegBinary(DC, LTR, lamb) # Train model
+        sVal = numpy.dot(w.T, DVALC) + b # Compute validation scores
+        PVAL = (sVal > 0) * 1 # Predict validation labels - sVal > 0 returns a boolean array, multiplying by 1 (integer) we get an integer array with 0's and 1's corresponding to the original True and False values
+        err = (PVAL != LVAL).sum() / float(LVAL.size)
+        print ('Error rate: %.1f' % (err*100))
+        # Compute empirical prior
+        pEmp = (LTR == 1).sum() / LTR.size
+        # Compute LLR-like scores - remove the empirical prior
+        sValLLR = sVal - numpy.log(pEmp / (1-pEmp))
+        # Compute optimal decisions for the prior 0.1
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        #print ('minDCF - pT = 0.5: %.4f' % bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+        #print ('actDCF - pT = 0.5: %.4f' % bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, 0.1, 1.0, 1.0))
+
+    plot_bayes_plot(actDCF,minDCF,"LR with centered data")
