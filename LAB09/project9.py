@@ -1,4 +1,5 @@
 import numpy
+import bayesRisk
 import scipy.special
 import sklearn.datasets
 import matplotlib
@@ -43,13 +44,6 @@ def split_db_2to1(D, L, seed=0):
     LTR = L[idxTrain]
     LVAL = L[idxTest]
     return (DTR, LTR), (DVAL, LVAL)
-
-def load_iris_binary():
-    D, L = sklearn.datasets.load_iris()['data'].T, sklearn.datasets.load_iris()['target']    
-    D = D[:, L != 0] # We remove setosa from D
-    L = L[L!=0] # We remove setosa from L
-    L[L==2] = 0 # We assign label 0 to virginica (was label 2)
-    return D, L
 
 # Optimize SVM
 def train_dual_SVM_linear(DTR, LTR, C, K = 1):
@@ -104,10 +98,10 @@ def rbfKernel(gamma):
     return rbfKernelFunc
 
 # kernelFunc: function that computes the kernel matrix from two data matrices
-def train_dual_SVM_kernel(DTR, LTR, C, kernelFunc, eps = 1.0):
+def train_dual_SVM_kernel(DTR, LTR, C, kernelFunc):
 
     ZTR = LTR * 2.0 - 1.0 # Convert labels to +1/-1
-    K = kernelFunc(DTR, DTR) + eps
+    K = kernelFunc(DTR, DTR)
     H = vcol(ZTR) * vrow(ZTR) * K
 
     # Dual objective with gradient
@@ -124,57 +118,101 @@ def train_dual_SVM_kernel(DTR, LTR, C, kernelFunc, eps = 1.0):
     # Function to compute the scores for samples in DTE
     def fScore(DTE):
         
-        K = kernelFunc(DTR, DTE) + eps
+        K = kernelFunc(DTR, DTE)
         H = vcol(alphaStar) * vcol(ZTR) * K
         return H.sum(0)
 
     return fScore # we directly return the function to score a matrix of test samples
 def plot_bayes_plot(actDCF,minDCF,msg):
-    matplotlib.pyplot.figure("SVM - DCF as a function of C")
-    matplotlib.pyplot.xscale('log', base=10)
-    matplotlib.pyplot.plot(numpy.logspace(-5, 0, 11), actDCF, label="actDCF", color='r', marker= 'o')  
-    matplotlib.pyplot.plot(numpy.logspace(-5, 0, 11), minDCF, label="minDCF", color='b', marker= 'o')   
+    plt.figure("SVM - DCF as a function of C")
+    plt.xscale('log', base=10)
+    plt.plot(numpy.logspace(-5, 0, 11), actDCF, label="actDCF", color='r', marker= 'o')  
+    plt.plot(numpy.logspace(-5, 0, 11), minDCF, label="minDCF", color='b', marker= 'o')   
     plt.title(msg)
     plt.grid()
-    plt.xlabel("C")
+    plt.xlabel("logC")
     plt.ylabel("DCF")
     #matplotlib.pyplot.ylim([0, 1.1])
-    matplotlib.pyplot.legend()
-    matplotlib.pyplot.show()
-import bayesRisk
+    plt.legend()
+    plt.show()
+
+def plot_bayes_plot_rbf(actDCF,minDCF):
+    plt.figure("SVM - DCF as a function of C - rbf kernel")
+    plt.xscale('log', base=10)
+    plt.plot(numpy.logspace(-3, 2, 11), actDCF[0], label="actDCF - gamma=e^(-4)", color='r', marker= 'o')  
+    plt.plot(numpy.logspace(-3, 2, 11), minDCF[0], label="minDCF - gamma=e^(-4)", color='b', marker= 'o')   
+    plt.plot(numpy.logspace(-3, 2, 11), actDCF[1], label="actDCF - gamma=e^(-3)", color='g', marker= 'o')  
+    plt.plot(numpy.logspace(-3, 2, 11), minDCF[1], label="minDCF - gamma=e^(-3)", color='c', marker= 'o') 
+    plt.plot(numpy.logspace(-3, 2, 11), actDCF[2], label="actDCF - gamma=e^(-2)", color='y', marker= 'o')  
+    plt.plot(numpy.logspace(-3, 2, 11), minDCF[2], label="minDCF - gamma=e^(-2)", color='m', marker= 'o') 
+    plt.plot(numpy.logspace(-3, 2, 11), actDCF[3], label="actDCF - gamma=e^(-1)", color='k', marker= 'o')  
+    plt.plot(numpy.logspace(-3, 2, 11), minDCF[3], label="minDCF - gamma=e^(-1)", color='b', marker= 'o') 
+    plt.title("DCF as a function of C - rbf kernel")
+    plt.grid()
+    plt.xlabel("logC")
+    plt.ylabel("DCF")
+    plt.legend()
+    plt.show()
+
+
 
 if __name__ == '__main__':
     D, L = load("trainData.txt")
     #we take a fraction of our data!
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(D, L)
-    # SVM takes time to setup: let's reduce our data
+    # SVM takes time to train: let's reduce our data
+    #DTR=DTR[:, ::50]
+    #LTR=LTR[::50]
     K=1
     actDCF = []
     minDCF = []
     for C in numpy.logspace(-5, 0, 11):
         w, b = train_dual_SVM_linear(DTR, LTR, C, K)
         SVAL = (vrow(w) @ DVAL + b).ravel()
-        PVAL = (SVAL > 0) * 1
-        err = (PVAL != LVAL).sum() / float(LVAL.size)
-        print ('Error rate: %.1f' % (err*100))
-        minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.5, 1.0, 1.0))
-        actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.5, 1.0, 1.0))
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
     plot_bayes_plot(actDCF,minDCF,"SVM - DCF as a funtion of C")
 
     #let's repeat with centered data
-    
-    for kernelFunc in [polyKernel(2, 0), polyKernel(2, 1), rbfKernel(1.0), rbfKernel(10.0)]:
-        for eps in [0.0, 1.0]:
-            fScore = train_dual_SVM_kernel(DTR, LTR, 1.0, kernelFunc, eps)
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(D, L)
+    #DTR=DTR[:, ::50]
+    #LTR=LTR[::50]
+    mu=DTR.mean(1) #we compute the mean for every dimension
+    DC=DTR-mu.reshape((mu.size,1))#we center the dataset
+    DVALC=DVAL-mu.reshape((mu.size,1))#we center the dataset
+    actDCF = []
+    minDCF = []
+    for C in numpy.logspace(-5, 0, 11):
+        w, b = train_dual_SVM_linear(DC, LTR, C, K)
+        SVAL = (vrow(w) @ DVALC + b).ravel()
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+    plot_bayes_plot(actDCF,minDCF,"SVM with centered data - DCF as a funtion of C")
+
+    actDCF = []
+    minDCF = []
+    kernelFunc=polyKernel(2, 1)
+    for C in numpy.logspace(-5, 0, 11):
+        fScore = train_dual_SVM_kernel(DTR, LTR, C, kernelFunc)
+        SVAL = fScore(DVAL)
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+    plot_bayes_plot(actDCF,minDCF,"SVM with polynomial kernel - DCF as a funtion of C")
+
+    actDCFcollection=[]
+    minDCFcollection=[]
+    #let's try with RBF kernel function
+    # DTR=DTR[:, ::50]
+    # LTR=LTR[::50]
+    for gamma in numpy.exp([-1,-2,-3,-4]):
+        actDCF = []
+        minDCF = []
+        kernelFunc=rbfKernel(gamma)
+        for C in numpy.logspace(-3, 2, 11):
+            fScore = train_dual_SVM_kernel(DTR, LTR, C, kernelFunc)
             SVAL = fScore(DVAL)
-            PVAL = (SVAL > 0) * 1
-            err = (PVAL != LVAL).sum() / float(LVAL.size)
-            print ('Error rate: %.1f' % (err*100))
-            print ('minDCF - pT = 0.5: %.4f' % bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.5, 1.0, 1.0))
-            print ('actDCF - pT = 0.5: %.4f' % bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.5, 1.0, 1.0))
-            print ()
-            
-        
-            
-        
-    
+            minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+            actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, 0.1, 1.0, 1.0))
+        actDCFcollection.append(actDCF)
+        minDCFcollection.append(minDCF)
+plot_bayes_plot_rbf(actDCFcollection,minDCFcollection)
