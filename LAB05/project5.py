@@ -155,15 +155,18 @@ if __name__ == '__main__':
     #covariance matrixes
     Utrue,Ctrue=compute_mu_C(DTR[:,LTR==1])
     Ufake,Cfake=compute_mu_C(DTR[:,LTR==0])
-    # print("Covariance matrix true:")
-    # print(Ctrue)
-    # CorrTrue = Ctrue / ( vcol(Ctrue.diagonal()**0.5) * vrow(Ctrue.diagonal()**0.5) )
-    # print("Pearson correlation for class true:")
-    # CorrFake = Cfake / ( vcol(Cfake.diagonal()**0.5) * vrow(Cfake.diagonal()**0.5) )
-    # print("Covariance matrix fake:")
-    # print(Cfake)
-    # print("Pearson correlation for class fake:")
-    # print(CorrFake)
+    numpy.set_printoptions(linewidth=120)
+    print("Covariance matrix true:")
+    print(Ctrue)
+    print("Covariance matrix fake:")
+    print(Cfake)
+
+    CorrTrue = Ctrue / ( vcol(Ctrue.diagonal()**0.5) * vrow(Ctrue.diagonal()**0.5) )
+    CorrFake = Cfake / ( vcol(Cfake.diagonal()**0.5) * vrow(Cfake.diagonal()**0.5) )
+    print("Pearson correlation for class true:")
+    print(CorrTrue)
+    print("Pearson correlation for class fake:")
+    print(CorrFake)
 
     #gaussian models does not represent features 5 and 6 well enough
     #we should try to eliminate them and see if the classifier is more accurate

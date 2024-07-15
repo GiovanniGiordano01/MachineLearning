@@ -95,15 +95,14 @@ def trainWeightedLogRegBinary(DTR, LTR, l, pT):
     return vf[:-1], vf[-1]
 
 def plot_bayes_plot(actDCF,minDCF,msg):
-    matplotlib.pyplot.figure("Logistic regression - lambda and "+msg+" visualized")
-    matplotlib.pyplot.xscale('log', base=10)
-    matplotlib.pyplot.plot(numpy.logspace(-4, 2, 13), actDCF, label="actDCF", color='r', marker= 'o')  
-    matplotlib.pyplot.plot(numpy.logspace(-4, 2, 13), minDCF, label="minDCF", color='b', marker= 'o')   
+    plt.figure("Logistic regression - lambda and "+msg+" visualized")
+    plt.xscale('log', base=10)
+    plt.plot(numpy.logspace(-4, 2, 13), actDCF, label="actDCF", color='r', marker= 'o')  
+    plt.plot(numpy.logspace(-4, 2, 13), minDCF, label="minDCF", color='b', marker= 'o')   
     plt.title(msg)
     plt.grid()
     plt.xlabel("lambda")
     plt.ylabel("DCF")
-    #matplotlib.pyplot.ylim([0, 1.1])
     matplotlib.pyplot.legend()
     matplotlib.pyplot.show()
 def compute_phi(X):
