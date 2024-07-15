@@ -160,7 +160,10 @@ def train_GMM_LBG_EM(X, numComponents, covType, psiEig = None, epsLLAverage = 1e
     if covType.lower() == 'diagonal':
         C = C * numpy.eye(X.shape[0]) # We need an initial diagonal GMM to train a diagonal GMM
     
-    gmm = [(1.0, mu, C)] # 1-component model
+    if psiEig is not None:
+        gmm = [(1.0, mu, smooth_covariance_matrix(C, psiEig))] # 1-component model - if we impose the eignevalus constraint, we must do it for the initial 1-component GMM as well
+    else:
+        gmm = [(1.0, mu, C)] # 1-component model
     
     while len(gmm) < numComponents:
         # Split the components
@@ -181,9 +184,9 @@ if __name__ == '__main__':
     print("*"*40)
     print("GMM using Full covariance matrix")
     for m in ([1,2,4,8,16,32]):
-        GMMreal = train_GMM_LBG_EM(Dreal, m,"Full")
+        GMMreal = train_GMM_LBG_EM(Dreal, m,covType="Full",psiEig=0.01)
         for n in ([1,2,4,8,16,32]):
-            GMMfake= train_GMM_LBG_EM(Dfake, n,"Full")
+            GMMfake= train_GMM_LBG_EM(Dfake, n,covType="Full",psiEig=0.01)
             llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
             #print("LLR="+str(llr))
             actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
@@ -198,9 +201,9 @@ if __name__ == '__main__':
     print("GMM using diagonal covariance matrix")
     print()
     for m in ([1,2,4,8,16,32]):
-        GMMreal = train_GMM_LBG_EM(Dreal, m,"Diagonal")
+        GMMreal = train_GMM_LBG_EM(Dreal, m,covType="Diagonal",psiEig=0.01)
         for n in ([1,2,4,8,16,32]):
-            GMMfake= train_GMM_LBG_EM(Dfake, n,"Diagonal")
+            GMMfake= train_GMM_LBG_EM(Dfake, n,covType="Diagonal",psiEig=0.01)
             llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
             #print("LLR="+str(llr))
             actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
