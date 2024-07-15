@@ -244,21 +244,6 @@ if __name__ == '__main__':
         print("actDCF="+str(actDCF))
         print("minDCF="+str(minDCF))
 
-    print()
-    print("*"*40)
-    print("GMM using Tied covariance matrix")
-    print()
-    for m in ([1,2,4,8,16]):
-        GMMreal = train_GMM_LBG_EM(Dreal, m,"Tied",verbose=False)
-        GMMfake= train_GMM_LBG_EM(Dfake, m,"Tied",verbose=False)
-        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
-        #print("LLR="+str(llr))
-        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        print("-"*40)
-        print("GMM Tied covariance matrix with "+str(m)+" components")
-        print("actDCF="+str(actDCF))
-        print("minDCF="+str(minDCF))
 
 
 
