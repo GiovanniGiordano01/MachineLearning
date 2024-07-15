@@ -1,19 +1,30 @@
-############################################################################################
-# Copyright (C) 2024 by Sandro Cumani                                                      #
-#                                                                                          #
-# This file is provided for didactic purposes only, according to the Politecnico di Torino #
-# policies on didactic material.                                                           #
-#                                                                                          #
-# Any form of re-distribution or online publication is forbidden.                          #
-#                                                                                          #
-# This file is provided as-is, without any warranty                                        #
-############################################################################################
-
 import numpy
 import scipy
 import scipy.special
 import matplotlib.pyplot as plt
+import bayesRisk
 
+def load(fname):
+    DList = []
+    labelsList = []
+    hLabels = {
+        '0': 0,
+        '1': 1,
+        }
+
+    with open(fname) as f:
+        for line in f:
+            try:
+                attrs = line.split(',')[0:-1]
+                attrs = vcol(numpy.array([float(i) for i in attrs]))
+                name = line.split(',')[-1].strip()
+                label = hLabels[name]
+                DList.append(attrs)
+                labelsList.append(label)
+            except:
+                pass
+
+    return numpy.hstack(DList), numpy.array(labelsList, dtype=numpy.int32)
 def vcol(x):
     return x.reshape((x.size, 1))
 
@@ -22,7 +33,7 @@ def vrow(x):
 
 def logpdf_GAU_ND(x, mu, C): # Fast version from Lab 4
     P = numpy.linalg.inv(C)
-    return -0.5*x.shape[0]*numpy.log(numpy.pi*2) - 0.5*numpy.linalg.slogdet(C)[1] - 0.5 * ((x-mu) * (P @ (x-mu))).sum(0)
+    return -0.5*x.shape[0]*numpy.log(numpy.pi*2) - 0.5*numpy.linalg.slogdet(C)[1] - 0.5 * ((x-mu) * (P @ (x-mu))).sum(0) 
 
 def split_db_2to1(D, L, seed=0):
     
@@ -171,7 +182,7 @@ def split_GMM_LBG(gmm, alpha = 0.1, verbose=True):
     return gmmOut
 
 # Train a full model using LBG + EM, starting from a single Gaussian model, until we have numComponents components. lbgAlpha is the value 'alpha' used for LBG, the otehr parameters are the same as in the EM functions above
-def train_GMM_LBG_EM(X, numComponents, covType = 'Full', psiEig = None, epsLLAverage = 1e-6, lbgAlpha = 0.1, verbose=True):
+def train_GMM_LBG_EM(X, numComponents, covType, psiEig = None, epsLLAverage = 1e-6, lbgAlpha = 0.1, verbose=True):
 
     mu, C = compute_mu_C(X)
 
@@ -196,77 +207,61 @@ def train_GMM_LBG_EM(X, numComponents, covType = 'Full', psiEig = None, epsLLAve
 
     
 if __name__ == '__main__':
-
-    X = numpy.load('Data/GMM_data_4D.npy')
-    gmm = load_gmm('Data/GMM_4D_3G_init.json')
-    llPrecomputed = numpy.load('Data/GMM_4D_3G_init_ll.npy')
-    ll = logpdf_GMM(X, gmm)
-    print (numpy.abs(ll-llPrecomputed).max()) # Check max absolute difference
-    
-    X = numpy.load('Data/GMM_data_1D.npy')
-    gmm = load_gmm('Data/GMM_1D_3G_init.json')
-    llPrecomputed = numpy.load('Data/GMM_1D_3G_init_ll.npy')
-    ll = logpdf_GMM(X, gmm)
-    print (numpy.abs(ll-llPrecomputed).max()) # Check max absolute difference
-
-    print()
-    print('***** EM - 4D *****')
-    print()
-    X = numpy.load('Data/GMM_data_4D.npy')
-    gmm = load_gmm('Data/GMM_4D_3G_init.json')
-    gmm = train_GMM_EM(X, gmm)
-    print ('Final average ll: %.8e' % logpdf_GMM(X, gmm).mean())
-
-    print()
-    print('***** EM - 1D *****')
-    print()
-    X = numpy.load('Data/GMM_data_1D.npy')
-    gmm = load_gmm('Data/GMM_1D_3G_init.json')
-    gmm = train_GMM_EM(X, gmm)
-    print ('Final average ll: %.8e' % logpdf_GMM(X, gmm).mean())
-    
-    plt.figure()
-    plt.hist(X.ravel(), 25, density=True) # Pay attention to the shape of X: X is a data matrix, so it's a 1 x N array, not a 1-D array
-    _X = numpy.linspace(-10, 5, 1000) # Plot gmm density in range (-10, 5) - x-data for the plot
-    plt.plot(_X.ravel(), numpy.exp(logpdf_GMM(vrow(_X), gmm))) # Pay attention to the shape of _X: for plotting _X should be a 1-D array, for logpdf_GMM it should be a 1 x N matrix with one-dimensional samples
+    D, L = load("trainData.txt")
+    #we take a fraction of our data!
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(D, L)
+    #now we train the training set for class 1 and class 2 with GMM of 32 components
+    Dreal  = DTR[:, LTR == 1]
+    Dfake = DTR[:, LTR == 0]
+    #we first try the full MVG
+    print("*"*40)
+    print("GMM using Full covariance matrix")
+    for m in ([1,2,4,8,16]):
+        GMMreal = train_GMM_LBG_EM(Dreal, m,"Full",verbose=False)
+        GMMfake= train_GMM_LBG_EM(Dfake, m,"Full",verbose=False)
+        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+        #print("LLR="+str(llr))
+        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        print("-"*40)
+        print("GMM Full covariance matrix with "+str(m)+" components")
+        print("actDCF="+str(actDCF))
+        print("minDCF="+str(minDCF))
 
     print()
-    print('***** LBG EM - 4D *****')
+    print("*"*40)
+    print("GMM using diagonal covariance matrix")
     print()
-    X = numpy.load('Data/GMM_data_4D.npy')
-    gmm = train_GMM_LBG_EM(X, 4)
-    print ('LBG + EM - final average ll: %.8e (%d components)' % (logpdf_GMM(X, gmm).mean(), len(gmm)))
-    print ('LBG + EM - final average ll - pretrained model: %.8e' % (logpdf_GMM(X, load_gmm('Data/GMM_4D_4G_EM_LBG.json')).mean()))
-    #print(gmm) # you can print the gmms
-    #print(load_gmm('Data/GMM_4D_4G_EM_LBG.json')) # you can print the gmms
-    print ('Max absolute ll difference w.r.t. pre-trained model over all training samples:', (numpy.abs(logpdf_GMM(X, gmm) - logpdf_GMM(X, load_gmm('Data/GMM_4D_4G_EM_LBG.json')))).max())
+    for m in ([1,2,4,8,16]):
+        GMMreal = train_GMM_LBG_EM(Dreal, m,"Diagonal",verbose=False)
+        GMMfake= train_GMM_LBG_EM(Dfake, m,"Diagonal",verbose=False)
+        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+        #print("LLR="+str(llr))
+        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        print("-"*40)
+        print("GMM diagonal covariance matrix with "+str(m)+" components")
+        print("actDCF="+str(actDCF))
+        print("minDCF="+str(minDCF))
 
     print()
-    print('***** LBG EM - 1D *****')
+    print("*"*40)
+    print("GMM using Tied covariance matrix")
     print()
-    X = numpy.load('Data/GMM_data_1D.npy')
-    gmm = train_GMM_LBG_EM(X, 4)
-    print ('LBG + EM - final average ll: %.8e (%d components)' % (logpdf_GMM(X, gmm).mean(), len(gmm)))
-    print ('LBG + EM - final average ll - pretrained model: %.8e' % (logpdf_GMM(X, load_gmm('Data/GMM_1D_4G_EM_LBG.json')).mean()))
-    #print(gmm) # you can print the gmms
-    #print(load_gmm('Data/GMM_1D_4G_EM_LBG.json')) # you can print the gmms
-    print ('Max absolute ll difference w.r.t. pre-trained model over all training samples:', (numpy.abs(logpdf_GMM(X, gmm) - logpdf_GMM(X, load_gmm('Data/GMM_1D_4G_EM_LBG.json')))).max())
+    for m in ([1,2,4,8,16]):
+        GMMreal = train_GMM_LBG_EM(Dreal, m,"Tied",verbose=False)
+        GMMfake= train_GMM_LBG_EM(Dfake, m,"Tied",verbose=False)
+        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+        #print("LLR="+str(llr))
+        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+        print("-"*40)
+        print("GMM Tied covariance matrix with "+str(m)+" components")
+        print("actDCF="+str(actDCF))
+        print("minDCF="+str(minDCF))
 
-    plt.figure()
-    plt.hist(X.ravel(), 25, density=True) # Pay attention to the shape of X: X is a data matrix, so it's a 1 x N array, not a 1-D array
-    _X = numpy.linspace(-10, 5, 1000) # Plot gmm density in range (-10, 5) - x-data for the plot
-    plt.plot(_X.ravel(), numpy.exp(logpdf_GMM(vrow(_X), gmm)), 'r') # Pay attention to the shape of _X: for plotting _X should be a 1-D array, for logpdf_GMM it should be a 1 x N matrix with one-dimensional samples
-    #plt.show()
-    
-    print()
-    print('***** LBG EM - 4D - Eigenvalue Theshold *****')
-    print()
-    X = numpy.load('Data/GMM_data_4D.npy')
-    gmm = train_GMM_LBG_EM(X, 4)
-    print ('LBG + EM - final average ll: %.8e (%d components)' % (logpdf_GMM(X, gmm).mean(), len(gmm)))
-    print ('LBG + EM - final average ll - pretrained model: %.8e' % (logpdf_GMM(X, load_gmm('Data/GMM_4D_4G_EM_LBG.json')).mean()))
-    #print(gmm) # you can print the gmms
-    #print(load_gmm('Data/GMM_4D_4G_EM_LBG.json')) # you can print the gmms
-    print ('Max absolute ll difference w.r.t. pre-trained model over all training samples:', (numpy.abs(logpdf_GMM(X, gmm) - logpdf_GMM(X, load_gmm('Data/GMM_4D_4G_EM_LBG.json')))).max())
+
+
+
 
     
