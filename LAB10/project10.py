@@ -50,30 +50,10 @@ def split_db_2to1(D, L, seed=0):
     
     return (DTR, LTR), (DVAL, LVAL)
 
-def load_iris():
-    
-    import sklearn.datasets
-    return sklearn.datasets.load_iris()['data'].T, sklearn.datasets.load_iris()['target']
-
 def compute_mu_C(D):
     mu = vcol(D.mean(1))
     C = ((D-mu) @ (D-mu).T) / float(D.shape[1])
     return mu, C
-
-######
-# from GMM_load.py
-import json
-
-def save_gmm(gmm, filename):
-    gmmJson = [(i, j.tolist(), k.tolist()) for i, j, k in gmm]
-    with open(filename, 'w') as f:
-        json.dump(gmmJson, f)
-    
-def load_gmm(filename):
-    with open(filename, 'r') as f:
-        gmm = json.load(f)
-    return [(i, numpy.asarray(j), numpy.asarray(k)) for i, j, k in gmm]
-######
 
 def logpdf_GMM(X, gmm):
 
@@ -148,32 +128,23 @@ def train_GMM_EM_Iteration(X, gmm, covType = 'Full', psiEig = None):
     return gmmUpd
 
 # Train a GMM until the average dela log-likelihood becomes <= epsLLAverage
-def train_GMM_EM(X, gmm, covType = 'Full', psiEig = None, epsLLAverage = 1e-6, verbose=True):
+def train_GMM_EM(X, gmm, covType = 'Full', psiEig = None, epsLLAverage = 1e-6):
 
     llOld = logpdf_GMM(X, gmm).mean()
     llDelta = None
-    if verbose:
-        print('GMM - it %3d - average ll %.8e' % (0, llOld))
     it = 1
     while (llDelta is None or llDelta > epsLLAverage):
         gmmUpd = train_GMM_EM_Iteration(X, gmm, covType = covType, psiEig = psiEig)
         llUpd = logpdf_GMM(X, gmmUpd).mean()
         llDelta = llUpd - llOld
-        if verbose:
-            print('GMM - it %3d - average ll %.8e' % (it, llUpd))
         gmm = gmmUpd
         llOld = llUpd
-        it = it + 1
-
-    if verbose:
-        print('GMM - it %3d - average ll %.8e (eps = %e)' % (it, llUpd, epsLLAverage))        
+        it = it + 1      
     return gmm
     
-def split_GMM_LBG(gmm, alpha = 0.1, verbose=True):
+def split_GMM_LBG(gmm, alpha = 0.1):
 
     gmmOut = []
-    if verbose:
-        print ('LBG - going from %d to %d components' % (len(gmm), len(gmm)*2))
     for (w, mu, C) in gmm:
         U, s, Vh = numpy.linalg.svd(C)
         d = U[:, 0:1] * s[0]**0.5 * alpha
@@ -182,27 +153,20 @@ def split_GMM_LBG(gmm, alpha = 0.1, verbose=True):
     return gmmOut
 
 # Train a full model using LBG + EM, starting from a single Gaussian model, until we have numComponents components. lbgAlpha is the value 'alpha' used for LBG, the otehr parameters are the same as in the EM functions above
-def train_GMM_LBG_EM(X, numComponents, covType, psiEig = None, epsLLAverage = 1e-6, lbgAlpha = 0.1, verbose=True):
+def train_GMM_LBG_EM(X, numComponents, covType, psiEig = None, epsLLAverage = 1e-6, lbgAlpha = 0.1):
 
     mu, C = compute_mu_C(X)
 
     if covType.lower() == 'diagonal':
         C = C * numpy.eye(X.shape[0]) # We need an initial diagonal GMM to train a diagonal GMM
     
-    if psiEig is not None:
-        gmm = [(1.0, mu, smooth_covariance_matrix(C, psiEig))] # 1-component model - if we impose the eignevalus constraint, we must do it for the initial 1-component GMM as well
-    else:
-        gmm = [(1.0, mu, C)] # 1-component model
+    gmm = [(1.0, mu, C)] # 1-component model
     
     while len(gmm) < numComponents:
         # Split the components
-        if verbose:
-            print ('Average ll before LBG: %.8e' % logpdf_GMM(X, gmm).mean())
-        gmm = split_GMM_LBG(gmm, lbgAlpha, verbose=verbose)
-        if verbose:
-            print ('Average ll after LBG: %.8e' % logpdf_GMM(X, gmm).mean()) # NOTE: just after LBG the ll CAN be lower than before the LBG - LBG does not optimize the ll, it just increases the number of components
+        gmm = split_GMM_LBG(gmm, lbgAlpha)
         # Run the EM for the new GMM
-        gmm = train_GMM_EM(X, gmm, covType = covType, psiEig = psiEig, verbose=verbose, epsLLAverage = epsLLAverage)
+        gmm = train_GMM_EM(X, gmm, covType = covType, psiEig = psiEig, epsLLAverage = epsLLAverage)
     return gmm
 
     
@@ -216,37 +180,32 @@ if __name__ == '__main__':
     #we first try the full MVG
     print("*"*40)
     print("GMM using Full covariance matrix")
-    for m in ([1,2,4,8,16]):
-        GMMreal = train_GMM_LBG_EM(Dreal, m,"Full",verbose=False)
-        GMMfake= train_GMM_LBG_EM(Dfake, m,"Full",verbose=False)
-        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
-        #print("LLR="+str(llr))
-        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        print("-"*40)
-        print("GMM Full covariance matrix with "+str(m)+" components")
-        print("actDCF="+str(actDCF))
-        print("minDCF="+str(minDCF))
+    for m in ([1,2,4,8,16,32]):
+        GMMreal = train_GMM_LBG_EM(Dreal, m,"Full")
+        for n in ([1,2,4,8,16,32]):
+            GMMfake= train_GMM_LBG_EM(Dfake, n,"Full")
+            llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+            #print("LLR="+str(llr))
+            actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+            minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+            print("-"*40)
+            print("GMM Full covariance matrix components true class:"+str(m)+" components fake class:"+str(n))
+            print("actDCF="+str(actDCF))
+            print("minDCF="+str(minDCF))
 
     print()
     print("*"*40)
     print("GMM using diagonal covariance matrix")
     print()
-    for m in ([1,2,4,8,16]):
-        GMMreal = train_GMM_LBG_EM(Dreal, m,"Diagonal",verbose=False)
-        GMMfake= train_GMM_LBG_EM(Dfake, m,"Diagonal",verbose=False)
-        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
-        #print("LLR="+str(llr))
-        actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
-        print("-"*40)
-        print("GMM diagonal covariance matrix with "+str(m)+" components")
-        print("actDCF="+str(actDCF))
-        print("minDCF="+str(minDCF))
-
-
-
-
-
-
-    
+    for m in ([1,2,4,8,16,32]):
+        GMMreal = train_GMM_LBG_EM(Dreal, m,"Diagonal")
+        for n in ([1,2,4,8,16,32]):
+            GMMfake= train_GMM_LBG_EM(Dfake, n,"Diagonal")
+            llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+            #print("LLR="+str(llr))
+            actDCF=bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+            minDCF=bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0)
+            print("-"*40)
+            print("GMM diagonal covariance matrix components true class:"+str(m)+" components fake class:"+str(n))
+            print("actDCF="+str(actDCF))
+            print("minDCF="+str(minDCF))
