@@ -172,6 +172,76 @@ def train_GMM_LBG_EM(X, numComponents, covType, psiEig = None, epsLLAverage = 1e
         gmm = train_GMM_EM(X, gmm, covType = covType, psiEig = psiEig, epsLLAverage = epsLLAverage)
     return gmm
 
+# Optimize the logistic regression loss
+def trainLogRegBinary(DTR, LTR, l):
+
+    ZTR = LTR * 2.0 - 1.0 # Z: 1 if class=1, -1 if class=0
+
+    def logreg_obj_with_grad(v): # We compute both the objective and its gradient to speed up the optimization
+        w,b = v[:-1],v[-1]
+        s = numpy.dot(vcol(w).T, DTR).ravel() + b #compute the score (wT*x+b)
+
+        loss = numpy.logaddexp(0, -ZTR * s) #this is log(1+e^-zi(wT*xi+b))
+
+        G = -ZTR / (1.0 + numpy.exp(ZTR * s)) #computing the gradient to speed up computations
+        GW = (vrow(G) * DTR).mean(1) + l * w.ravel()
+        Gb = G.mean()
+
+        return loss.mean() + l / 2 * numpy.linalg.norm(w)**2, numpy.hstack([GW, numpy.array(Gb)])#we return J(w,b)
+
+    vf = scipy.optimize.fmin_l_bfgs_b(logreg_obj_with_grad, x0 = numpy.zeros(DTR.shape[0]+1))[0]
+    print ("Log-reg - lambda = %e - J*(w, b) = %e" % (l, logreg_obj_with_grad(vf)[0]))
+    return vf[:-1], vf[-1]
+def plot_bayes_plot(actDCF,minDCF,msg):
+    plt.figure(msg)
+    plt.xscale('log', base=10)
+    plt.plot(numpy.logspace(-4, 4, 21), actDCF, label="actDCF", color='r', marker= 'o')  
+    plt.plot(numpy.logspace(-4, 4, 21), minDCF, label="minDCF", color='b', marker= 'o')   
+    plt.title(msg)
+    plt.grid()
+    #plt.ylim(0,1)
+    plt.xlabel("lambda")
+    plt.ylabel("DCF")
+    plt.legend()
+    plt.show()
+
+def rbfKernel(gamma):
+
+    def rbfKernelFunc(D1, D2):
+        # Fast method to compute all pair-wise distances. Exploit the fact that |x-y|^2 = |x|^2 + |y|^2 - 2 x^T y, combined with broadcasting
+        D1Norms = (D1**2).sum(0)
+        D2Norms = (D2**2).sum(0)
+        Z = vcol(D1Norms) + vrow(D2Norms) - 2 * numpy.dot(D1.T, D2)
+        return numpy.exp(-gamma * Z)
+
+    return rbfKernelFunc
+
+# kernelFunc: function that computes the kernel matrix from two data matrices
+def train_dual_SVM_kernel(DTR, LTR, C, kernelFunc):
+
+    ZTR = LTR * 2.0 - 1.0 # Convert labels to +1/-1
+    K = kernelFunc(DTR, DTR)
+    H = vcol(ZTR) * vrow(ZTR) * K
+
+    # Dual objective with gradient
+    def fOpt(alpha):
+        Ha = H @ vcol(alpha)
+        loss = 0.5 * (vrow(alpha) @ Ha).ravel() - alpha.sum()
+        grad = Ha.ravel() - numpy.ones(alpha.size)
+        return loss, grad
+
+    alphaStar, _, _ = scipy.optimize.fmin_l_bfgs_b(fOpt, numpy.zeros(DTR.shape[1]), bounds = [(0, C) for i in LTR], factr=1.0)
+
+    print ('SVM (kernel) - C %e - dual loss %e' % (C, -fOpt(alphaStar)[0]))
+
+    # Function to compute the scores for samples in DTE
+    def fScore(DTE):
+        
+        K = kernelFunc(DTR, DTE)
+        H = vcol(alphaStar) * vcol(ZTR) * K
+        return H.sum(0)
+
+    return fScore # we directly return the function to score a matrix of test samples
     
 if __name__ == '__main__':
     D, L = load("trainData.txt")
@@ -212,3 +282,53 @@ if __name__ == '__main__':
             print("GMM diagonal covariance matrix components true class:"+str(m)+" components fake class:"+str(n))
             print("actDCF="+str(actDCF))
             print("minDCF="+str(minDCF))
+
+#now let's plot the minDCF and actDCF of the 3 best classifier (quadratic LR,rbf kernel SVM and GMM)
+#the best DCF was given by a small lambda value
+    actDCF = []
+    minDCF = []
+    l=0.005
+    effPriorLogOdds = numpy.linspace(-4, 4, 21)
+    effPriors = 1.0 / (1.0 + numpy.exp(-effPriorLogOdds))
+    for effPrior in effPriors:
+        w, b = trainLogRegBinary(DTR, LTR,l) # Train model
+        sVal = numpy.dot(w.T, DVAL) + b # Compute validation scores
+        PVAL = (sVal > 0) * 1 # Predict validation labels - sVal > 0 returns a boolean array, multiplying by 1 (integer) we get an integer array with 0's and 1's corresponding to the original True and False values
+        err = (PVAL != LVAL).sum() / float(LVAL.size)
+        print ('Error rate: %.1f' % (err*100))
+        # Compute empirical prior
+        pEmp = (LTR == 1).sum() / LTR.size
+        # Compute LLR-like scores - remove the empirical prior
+        sValLLR = sVal - numpy.log(pEmp / (1-pEmp))
+        # Compute optimal decisions for the prior 0.1
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(sValLLR, LVAL, effPrior, 1.0, 1.0))
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(sValLLR, LVAL, effPrior, 1.0, 1.0))
+    plot_bayes_plot(actDCF,minDCF,"quadratic LR with lambda=0.005")
+
+    #the best SVM was the one with small regularization (big C value) and gamma=e^-3
+    #so we take C=30, 
+    C=30
+    gamma=numpy.exp(-3)
+    actDCF = []
+    minDCF = []
+    kernelFunc=rbfKernel(gamma)
+    for effPrior in effPriors:
+        fScore = train_dual_SVM_kernel(DTR, LTR, C, kernelFunc)
+        SVAL = fScore(DVAL)
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(SVAL, LVAL, effPrior, 1.0, 1.0))
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(SVAL, LVAL, effPrior, 1.0, 1.0))
+    plot_bayes_plot(actDCF,minDCF,"rbf SVM with C=30, gamma=e^-3")
+
+    #now we plot the best GMM model: diagonal GMM with 8 components for the fake class and 32 components for the true class
+    actDCF = []
+    minDCF = []
+    GMMreal = train_GMM_LBG_EM(Dreal, 32,covType="Diagonal",psiEig=0.01)
+    GMMfake= train_GMM_LBG_EM(Dfake, 8,covType="Diagonal",psiEig=0.01)
+    for effPrior in effPriors:
+        llr=logpdf_GMM(DVAL, GMMreal) -logpdf_GMM(DVAL,GMMfake)
+        actDCF.append(bayesRisk.compute_actDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0))
+        minDCF.append(bayesRisk.compute_minDCF_binary_fast(llr, LVAL, 0.1, 1.0, 1.0))
+    plot_bayes_plot(actDCF,minDCF,"GMM")
+    
+
+    
