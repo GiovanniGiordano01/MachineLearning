@@ -1,7 +1,6 @@
 import numpy
 import bayesRisk
 import scipy.special
-import sklearn.datasets
 import matplotlib
 import matplotlib.pyplot as plt
 def load(fname):
